@@ -1,0 +1,63 @@
+/* 操作ボタンのデザイン指定*/
+
+.button_01{
+    border-style: solid;
+    border-width: 1px;
+    border-color: black;
+    border-radius: 5px;
+    width:40px;
+    height:40px;
+
+    background-image: url('../icons/LeftBorder.png');
+}
+
+.button_02{
+    border-style: solid;
+    border-width: 1px;
+    border-color: black;
+    border-radius: 5px;
+    width:40px;
+    height:40px;
+
+    background-image: url('../icons/RightBorder.png');
+}
+
+.button_03{
+    border-style: solid;
+    border-width: 1px;
+    border-color: black;
+    border-radius: 5px;
+    width:40px;
+    height:40px;
+
+    background-image:url('../icons/HorizontalBorder.png');
+}
+
+.angle-disp{
+    display: flex; 
+    align-items: center;
+}
+
+.up-down-button{
+    display:flex; 
+    flex-direction: column;
+}
+
+.button_04{
+
+}
+
+.button_05{
+
+}
+
+.button_06{
+    border-style: solid;
+    border-width: 1px;
+    border-color:black;
+    border-radius: 5px;
+    width:40px;
+    height:40px;
+
+    background-image:none;
+}

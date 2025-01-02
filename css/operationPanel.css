@@ -1,0 +1,41 @@
+/*操作パネルの動きとデザイン*/
+
+.ope-base{
+
+    position: absolute;
+
+    top: 0px;
+    left : 0px;
+
+
+
+
+
+    /*
+    position:sticky;
+    bottom: 10px;
+
+    display:flex;
+    justify-content: center;
+
+    */
+    
+    z-index: 3;
+
+}
+
+.ope-panel{
+
+    width:550px;
+    height:60px;
+
+    border-style: solid;
+    border-width: 1px;
+    border-radius: 10px;
+
+    display: flex;
+    justify-content:space-around;
+    align-items: center;
+    
+    background-color: blanchedalmond;
+}

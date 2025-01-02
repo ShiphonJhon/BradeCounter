@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <link href="./css/style.css"  rel="stylesheet">
+    <link href="./css/operationPanel.css" rel="stylesheet">
+    <link href="./css/opeButton.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+    <script src="./js/load_image_file.js"></script>
+    <script src="./js/gray_square.js"></script>
+    <script src="./js/rotate.js"></script>
+    <script src="./js/cutCurve.js"></script>
+    <script src="./js/calc.js"></script>
+    <script src="./js/border.js"></script>
+    <script src="./js/scale.js"></script>
+    <title>Image Fin Counter</title>
+</head>
+<script>
+
+    //バックグラウンド用    canvas 画像の回転と描写
+    function backgoundRotate( _angle, _ctx_bg, _canvas_bg, _imgElem){
+
+        _canvas_bg.width = _imgElem.naturalWidth;
+        _canvas_bg.height = _imgElem.naturalHeight;
+        let bg_harf_widhth = Math.floor( _canvas_bg.width / 2 );
+        let bg_harf_height = Math.floor( _canvas_bg.height / 2);
+
+        _ctx_bg.translate(bg_harf_widhth, bg_harf_height);
+        let bg_angle = _angle;
+        _ctx_bg.rotate( -bg_angle / 180 *Math.PI);
+        _ctx_bg.translate(-bg_harf_widhth, -bg_harf_height);
+        _ctx_bg.drawImage(_imgElem,0,0);
+    }
+
+    // draw 系　ライブラリにまとめる
+    function drawPixcels( _ctx, _pixcelData ){
+        _ctx.reset();
+        for(let j=0;j<_pixcelData.length;j++){
+            for(let i=0; i<_pixcelData[0].length;i++){
+                let r = _pixcelData[j][i][0];
+                let g = _pixcelData[j][i][1];
+                let b = _pixcelData[j][i][2];
+                _ctx.fillStyle =`rgb(${r},${g},${b})`;
+                _ctx.fillRect(i,j,1,1);
+            }
+        }
+    }
+
+    // loadImageFile
+    function loadImageFile(event){
+        const file = event.target.files[0];
+
+        if(file){
+
+            //progress
+            //console.log("fileLoad in!");   //0
+            progressBar.value = "10";
+
+            imgElem.onload = () => {
+
+                // ダミー用 canvas
+                canvasDummy.width = imgElem.naturalWidth;
+                canvasDummy.height = imgElem.naturalHeight;
+
+                //ctx_Dummy 利用開始
+                ctx_Dummy.drawImage(imgElem,0,0);  
+
+                //RGB pixcel dataを取得
+                const orgImageData = ctx_Dummy.getImageData(0,0,canvasDummy.width,
+                    canvasDummy.height );
+                const data = orgImageData.data;
+
+                // raw data →　RGB data ただし１次元データになる
+                const orgRGB = [];
+                let pos = 0;
+                let dataLength = Math.floor(data.length /4);
+                for(let i=0;i< dataLength;i++){
+                    const r = data[pos];
+                    const g = data[pos+1];
+                    const b = data[pos+2];
+                    const s = data[pos+3];
+                    pos = pos + 4;
+                    orgRGB.push([r,g,b]);
+                }
+
+                //RGB  → widthとheightの2次元に変換する
+                //グローバル変数　rgbPixcels
+                let tempPixcels = [];
+                for(let j=0;j<canvasDummy.height;j++){
+                    for(let i=0;i<canvasDummy.width;i++){
+                        let pos = i + canvasDummy.width * j;
+                        let r = orgRGB[pos][0];
+                        let g = orgRGB[pos][1];
+                        let b = orgRGB[pos][2];
+                        tempPixcels.push([r,g,b]);
+                    }
+                    rgbPixcels.push(tempPixcels);
+                    tempPixcels = [];
+                }
+                // rgbPixcelsが完成した
+
+                //progress
+                progressBar.value = "20";
+
+                // rgbPixcel canvasへ描写してみる
+                //cancas  ctx 利用開始 ここから
+                canvasElem.width = canvasDummy.width;   //3840
+                canvasElem.height = canvasDummy.height;  //2160
+                
+                //カラーRGB　→　グレーRGB
+                graySquare = makeGraySquare( rgbPixcels );
+
+                //---------回転  rotatedSquare------------------------
+                rotatedSquare = rotateSquare(graySquare, imageAngle);
+
+                // H_Line, L_Line R_Line の初期化　必要
+                // canvasElem.width  canvasElem.height から　算出
+                H_Line = Math.floor( canvasElem.height * 5 / 8);   //1350
+                L_Line = Math.floor( canvasElem.width / 16);        //240
+                R_Line = Math.floor( canvasElem.width * 15 / 16);   //3600
+                //R_Line = Math.floor( 400 );   //3600
+
+                //--------------　y_line で　カットして　Gray Curveを得る------
+                let grayCurve = cutGrayCurve( rotatedSquare, H_Line);
+
+                //-----------フル範囲の頂上データを取得する---------------------
+                line_Tops = calcTopsNoTrim( grayCurve, H_Line);
+                //---------------------各計算　ここまで-----------------------
+
+                //------------------border による　trim----------------------
+                field_Line_Data = trimByBorder( line_Tops, H_Line, L_Line, R_Line );
+                
+                //----------------回転した画像を　描写する------------------
+                //canbas_bg バックグラウンド用　回転後を描写
+                backgoundRotate( imageAngle, ctx_bg, canvas_bg, imgElem);
+
+                //progress
+                progressBar.value = "100";
+
+                //---------------------canvas main へ再描写--------------------
+                //canvasの画像をクリアする
+                ctx.reset();
+
+                //--------------------Border の描写-------------------------
+                //左ボーダーラインを描く
+                left_border.line_pos = L_Line;
+                left_border.drawBorderLine();
+                //右ボーダーラインを描く
+                right_border.line_pos = R_Line;
+                right_border.drawBorderLine();
+                //水平ボーダーラインを描く
+                horizontal_border.line_pos = H_Line;
+                horizontal_border.drawBorderLine();
+                //-------------------Border の描写 ここまで-------------------
+
+                //-------------------Scaleの描写-----------------------------
+                //目盛りの描写
+                scale.fieldLineData = field_Line_Data;
+                scale.drawScale();
+                //------------------Scaleの描写 ここまで-----------------------
+
+                //-----------------finCount 表示------------------------------------
+                finCount = scale.countFins( field_Line_Data );
+                countDisp.textContent = String(finCount);
+                //-----------------finnCount表示　ここまで---------------------------
+           
+                
+                //debug--------------------------------------
+                //ope_rect = ope_panel.getBoundingClientRect();
+                //console.log(ope_rect.x,ope_rect.y, ope_rect.width, ope_rect.height);
+                //debug---------------------------------------
+
+           
+           
+            }
+        }
+        imgElem.src = URL.createObjectURL(file);
+    }
+
+    //canvas 上のマウスハンドラ
+    // mouse down
+    function mouseDownHandler(event){
+        let MouseX = event.offsetX;
+        let MouseY = event.offsetY;
+
+        //------------------border--------------------------------
+        //left border
+        left_border.inMouseDounHandler(event);
+        //right border
+        right_border.inMouseDounHandler(event);
+        //horizontal border
+        horizontal_border.inMouseDounHandler(event);
+        //-------------------border ここまで--------------------------
+
+        //-------------------scale--------------------------------
+        //マウス　down　に記載する処理
+        scale.inMouseDownHandler(event);
+        //-------------------scale ここまで-------------------------
+    }
+
+    //mouse move
+    function mouseMoveHandler(event){
+        let MouseX = event.offsetX;
+        let MouseY = event.offsetY;
+
+        //------------------------border--------------------------------
+        //Border の　各操作ボタンのいづれかが押されている場合
+        if(left_border.isActive || right_border.isActive || horizontal_border.isActive){
+            //---------------left border---------------------
+            //ボーダーラインをマウスでドラック移動
+            left_border.inMouseMoveHandler(event);
+            //移動した位置の変更結果の出力
+            L_Line = left_border.line_pos;
+            //---------------right border---------------------
+            //ボーダーラインをマウスでドラック移動
+            right_border.inMouseMoveHandler(event);
+            //移動した位置の変更結果の出力
+            R_Line = right_border.line_pos;
+
+            //---------------horizontal border---------------------
+            //ボーダーラインをマウスでドラック移動
+            horizontal_border.inMouseMoveHandler(event);
+            //移動した位置の変更結果の出力
+            H_Line = horizontal_border.line_pos;
+
+            //H_Line が変更になった場合
+            // rotated square を　再度　H_Line で　カットする必要がある
+            //そうして新しくLine_Tops を生成する必要がある
+            //　y_line で　カットして　Gray Curveを得る
+            let grayCurve = cutGrayCurve( rotatedSquare, H_Line);
+            
+            //calc line tops  頂上を計算する
+            //　左右のトリムはしない
+            line_Tops = calcTopsNoTrim( grayCurve, H_Line);
+
+            //-----------------trim border for scale----------------
+            field_Line_Data = trimByBorder(line_Tops, H_Line, L_Line, R_Line);
+        }
+        //-------------------border ここまで----------------------
+
+        // 表側のレイヤ―のcanvas画像をクリアする
+        ctx.reset();
+
+        //--------------------border 描写--------------------------
+        //左ボーダーラインを描く
+        left_border.drawBorderLine();
+        //右ボーダーラインを描く
+        right_border.drawBorderLine();
+        //水平ボーダーラインを描く
+        horizontal_border.drawBorderLine();
+        //-------------------border 描写ここまで-------------------------
+
+        //---------------------scale 描写-------------------------------
+        //scale 再描写
+        scale.fieldLineData = field_Line_Data;
+        scale.drawScale();
+        //---------------------scale 描写 ここまで---------------------------
+
+        //-----------------finCount 表示------------------------------------
+        finCount = scale.countFins( field_Line_Data );
+        countDisp.textContent = String(finCount);
+        //-----------------finnCount表示　ここまで---------------------------
+
+        //-------------------scale 処理（ホバー表示）-----------------
+        //マウス　move内に記載する処理
+        // 目盛り　ホバー処理  小さな目盛り　を内部で描く
+        scale.inMouseMoveHandler(event);
+        //-------------------scale ホバー処理　ここまで-----------------
+    }
+
+    //mouse up
+    function mouseUpHandler(event){
+        let MouseX = event.offsetX;
+        let MouseY = event.offsetY;
+
+        //-----------------------------border-------------------------------
+        //-----------------left border---------------------
+        // Mouse up の中にいれる処理
+        left_border.inMouseUpHandler(event);
+        //-----------------right border---------------------
+        // Mouse up の中にいれる処理
+        right_border.inMouseUpHandler(event);
+        //-----------------horizontal border---------------------
+        // Mouse up の中にいれる処理
+        horizontal_border.inMouseUpHandler(event);
+        //------------------------------border ここまで---------------
+
+        //----------------------scale ------------------------------
+        //マウスupハンドラ内に記載する処理
+        // 操作ボタンが押されている場合の目盛りの追加
+        // 除去したい目盛りをクリックして赤く反転させる
+        scale.inMouseUpHandler(event);
+        //元データに追加データを反映する
+        field_Line_Data = scale.fieldLineData;
+        //------------------------scale 処理　ここまで--------------------
+
+        //念のために　Border によるトリム処理を行う
+        field_Line_Data = trimByBorder( field_Line_Data, H_Line, L_Line, R_Line);
+
+        //----------------------再描写---------------------------------
+        //背景を消去
+        ctx.reset();
+
+        //--------------------border描写--------------------------
+        //左ボーダーラインを描く
+        left_border.drawBorderLine();
+        //右ボーダーラインを描く
+        right_border.drawBorderLine();
+        //水平ボーダーラインを描く
+        horizontal_border.drawBorderLine();
+        //-------------------border描写　ここまで-------------------------
+
+        //--------------------scale 描写----------------------------------
+        // 目盛りを描写する
+        scale.fieldLineData = field_Line_Data;  //必要
+        scale.drawScale();
+        //--------------------scale 描写 ここまで----------------------------
+
+        //以下なくても　良い　（カーソルが範囲内にあるためmoveで処理される
+        //-----------------finCount 表示------------------------------------
+        finCount = scale.countFins( field_Line_Data );
+        countDisp.textContent = String(finCount);
+        //-----------------finnCount表示　ここまで---------------------------
+
+    }
+
+    function moveOpePanel(){
+
+        //画面の横幅の取得
+        let AppWidth = window.innerWidth;
+        //let AppWidth = document.body.clientWidth;
+        let PanelX = AppWidth / 2 - 552.5 /2 -10 + window.scrollX;
+
+        //画面の縦幅の取得
+        let AppHeight = window.innerHeight;
+        //let AppHeight = document.body.clientHeight;
+        let PanelY = AppHeight - 120 + window.scrollY;
+
+        //ope panel 移動
+        ope_panel.style.position = "absolute";
+        ope_panel.style.left = PanelX + "px";
+        ope_panel.style.top = PanelY + "px";
+
+    }
+
+</script>
+
+<body>
+    <h1 class="main-title">- Brade Counter -</h1>
+    <div class="file-select">
+        <label>
+            <input type="file" id="fileTag" >
+                　（JPEG あるいは　24bit Bitmapファイルを読み込んでください。）
+        </label>
+    </div>
+    <div>
+        <progress id="progressTag" value="0" max="100">0%</progress>
+    </div>
+    <img id="imgTag" width="320" height="180" class="place-holder">
+    </br>
+
+
+    <canvas id="canvasDummy" style="display:none"></canvas>
+    
+    <div id="div_base"  class="div_base">
+        <canvas id="canvas_bg" width="1000" height= "500" class="canvas_bg"></canvas>
+        <canvas id="canvasTag" width="1000" height= "500" class="canvas_front"></canvas>
+    </div>
+        
+    
+    <div class="ope-base" >
+        <div id="ope_panel" class="ope-panel">
+            <button id="button_01" class="button_01"></button>
+            <button id="button_02" class="button_02"></button>
+            <button id="button_03" class="button_03"></button>
+            <div class="angle-disp" >
+                <p> 画像角度 <span id="angle_disp">0</span>° </p>
+                <div class="up-down-button">
+                    <button id="button_04" class="button_04">▲</button>
+                    <button id="button_05" class="button_05">▼</button>
+                </div>
+            </div>
+            <button id="button_06" class="button_06"></button>
+            <div>
+                <p>Fin枚数 <span id="countDisp">100</span> 枚</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileElem = document.getElementById('fileTag');
+        const imgElem = document.getElementById('imgTag');
+        //ファイルデータ取得のためのダミーcanvas
+        let canvasDummy = document.getElementById('canvasDummy');
+        let ctx_Dummy = canvasDummy.getContext('2d');
+
+        //バックグラウンド用　canvas_bg
+        const canvas_bg = document.getElementById('canvas_bg');
+        const ctx_bg = canvas_bg.getContext('2d');
+
+        //画像表示用canvas
+        let canvasElem = document.getElementById('canvasTag');
+        let ctx = canvasElem.getContext('2d');
+        
+        //button
+        const button_01 = document.getElementById('button_01');
+        const button_02 = document.getElementById('button_02');
+        const button_03 = document.getElementById('button_03');
+        const button_04 = document.getElementById('button_04');
+        const button_05 = document.getElementById('button_05');
+        const button_06 = document.getElementById('button_06');
+
+        //枚数表示
+        const countDisp = document.getElementById('countDisp');
+
+        const progressBar = document.getElementById('progressTag');
+
+        //グローバル変数
+        let imageAngle = 0;
+        let H_Line = 200;
+        let L_Line = 10;
+        let R_Line = 100;
+        let finCount = 80;
+
+        //rgbのカラーピクセルデータ(2次元データ)
+        let rgbPixcels = [];
+
+        // グレー画像で　RGBのそれぞれがグレー
+        let graySquare = [];
+
+        //回転後のグレー画像
+        let rotatedSquare = [];
+
+        //グレーの頂上のX座標  [...[No, X, Y, act]]
+        let line_Tops = [];
+
+        // Border Trimによって書き換えられるデータ
+        let field_Line_Data = [];
+
+        // 角度の表示
+        angle_disp = document.getElementById('angle_disp');
+        angle_disp.textContent = imageAngle;
+
+        //-------------クラスのインスタンス化 と初期値の設定----------------
+        //-------------------Left Border------------------------------
+        const left_border = new LeftBorder( button_01, ctx, canvasElem );
+        left_border.button_on_background =  "gray url('./icons/LeftBorder.png')";
+        left_border.button_off_background = "white url('./icons/LeftBorder.png')";
+        left_border.line_pos = L_Line;
+
+        //------------------Right Border-----------------------------------
+        const right_border = new RightBorder( button_02, ctx, canvasElem );
+        right_border.button_on_background =  "gray url('./icons/RightBorder.png')";
+        right_border.button_off_background = "white url('./icons/RightBorder.png')";
+        right_border.line_pos = R_Line;
+
+        //---------------Horizontal Border------------------------------------
+        const horizontal_border = new HorizontalBorder( button_03, ctx, canvasElem );
+        horizontal_border.button_on_background =  "gray url('./icons/HorizontalBorder.png')";
+        horizontal_border.button_off_background = "white url('./icons/HorizontalBorder.png')";
+        horizontal_border.line_pos = H_Line;
+
+        //------------------scale-------------------------------------------------
+        const scale = new Scale( button_06, ctx, canvasElem );
+        scale.button_on_background = "gray url('./icons/Scale.png')";
+        scale.button_off_background = "white url('./icons/Scale.png')";
+
+        //-----------------finCount 表示------------------------------------
+        countDisp.textContent = String(finCount);
+        //-----------------finnCount表示　ここまで----------------------------
+        
+        //--------------------ope panel 位置設定-------------------------------
+        const ope_panel = document.getElementById('ope_panel');
+
+        //--------------------scroll event-----------------------------------
+        function scrollHandler(){
+            console.log("scroll in !");
+            moveOpePanel();
+        }
+        window.addEventListener('scroll', scrollHandler);
+
+        //---------------------resize event-----------------------------------
+        function resizeHandler(){
+            console.log("resize in !");
+            moveOpePanel();
+        }
+        window.addEventListener('resize',resizeHandler);
+        //---------------------------------------------------------------------
+
+        //ope panel 位置移動
+        moveOpePanel();
+
+
+        function button_04ClickHandler(){
+            //角度の増加
+            //imageAngle++;
+            imageAngle = imageAngle + 0.5;
+            
+            //角度の表示
+            angle_disp.textContent = imageAngle;
+
+            // ----------------------画像の回転による　再計算--------------------------
+            //画像の回転
+            rotatedSquare = rotateSquare(graySquare, imageAngle);
+        
+            //H_LineH＿Lineでカット
+            let grayCurve = cutGrayCurve( rotatedSquare, H_Line);
+            
+            //曲線の頂上を検出する
+            //　左右のトリムはしない
+            line_Tops = calcTopsNoTrim( grayCurve, H_Line);
+
+            //左右のトリムを行う
+            //-----------------trim border for scale----------------
+            field_Line_Data = trimByBorder(line_Tops, H_Line, L_Line, R_Line);
+            //-------------------------画像の回転による再計算　ここまで----------------------
+
+            //-------------------バックグラウンド　変更----------------
+            //canvas バックグラウンド用の画像を回転
+            backgoundRotate( imageAngle, ctx_bg, canvas_bg, imgElem);
+            //--------------------------------------------------------
+
+            // 表側のレイヤ―のcanvas画像をクリアする
+            ctx.reset();
+
+            //--------------------Border の描写-------------------------
+            //左ボーダーラインを描く
+            left_border.line_pos = L_Line;
+            left_border.drawBorderLine();
+            //右ボーダーラインを描く
+            right_border.line_pos = R_Line;
+            right_border.drawBorderLine();
+            //水平ボーダーラインを描く
+            horizontal_border.line_pos = H_Line;
+            horizontal_border.drawBorderLine();
+            //-------------------Border の描写 ここまで-------------------
+
+            //--------------------scale 描写----------------------------------
+            // 目盛りを描写する
+            scale.fieldLineData = field_Line_Data;  //必要
+            scale.drawScale();
+            //--------------------scale 描写 ここまで----------------------------
+
+            //-----------------finCount 表示------------------------------------
+            finCount = scale.countFins( field_Line_Data );
+            countDisp.textContent = String(finCount);
+            //-----------------finnCount表示　ここまで---------------------------
+        }
+
+        function button_05ClickHandler(){
+            //角度の減少
+            //imageAngle--;
+            imageAngle = imageAngle - 0.5;
+            
+            
+
+            //角度の表示
+            angle_disp.textContent = imageAngle;
+            
+            // ----------------------画像の回転による　再計算--------------------------
+            //画像の回転と再描写
+            // gray square 再計算
+            //回転  rotatedSquare
+            rotatedSquare = rotateSquare(graySquare, imageAngle);
+        
+            //　y_line で　カットして　Gray Curveを得る
+            let grayCurve = cutGrayCurve( rotatedSquare, H_Line);
+            
+            //　左右のトリムはしない
+            line_Tops = calcTopsNoTrim( grayCurve, H_Line);
+
+            //左右のトリムを行う
+            //-----------------trim border for scale----------------
+            field_Line_Data = trimByBorder(line_Tops, H_Line, L_Line, R_Line);
+    
+            //-------------------------画像の回転による再計算　ここまで----------------------
+
+            //-------------------バックグラウンド　変更----------------
+            //canvas バックグラウンド用の画像を回転
+            backgoundRotate( imageAngle, ctx_bg, canvas_bg, imgElem);
+            //--------------------------------------------------------
+
+            // 表側のレイヤ―のcanvas画像をクリアする
+            ctx.reset();
+
+            //--------------------Border の描写-------------------------
+            //左ボーダーラインを描く
+            left_border.line_pos = L_Line;
+            left_border.drawBorderLine();
+            //右ボーダーラインを描く
+            right_border.line_pos = R_Line;
+            right_border.drawBorderLine();
+            //水平ボーダーラインを描く
+            horizontal_border.line_pos = H_Line;
+            horizontal_border.drawBorderLine();
+            //-------------------Border の描写 ここまで-------------------
+
+            //--------------------scale 描写----------------------------------
+            // 目盛りを描写する
+            scale.fieldLineData = field_Line_Data;  //必要
+            scale.drawScale();
+            //--------------------scale 描写 ここまで----------------------------
+
+            //-----------------finCount 表示------------------------------------
+            finCount = scale.countFins( field_Line_Data );
+            countDisp.textContent = String(finCount);
+            //-----------------finnCount表示　ここまで---------------------------
+        }
+        
+
+        //-------------------キーボードのイベントハンドラ---------------------
+        function keyboard_Handler(e){
+
+            if( e.key == "Delete"){
+
+                //-----------------scale-----------------------------
+                //目盛りのキーボード　除去　内の処理を配置
+                //現状データの取り込み
+                scale.fieldLineData = field_Line_Data;
+                //act が　false であるデータが　リストから除外される
+                scale.inKeyBoardHandler();
+                //変更データの反映
+                field_Line_Data = scale.fieldLineData;
+
+                //----------------------再描写------------------------------------
+                //画面をホワイトアウトする
+                ctx.reset();
+
+                //--------------------border描写--------------------------
+                //左ボーダーラインを描く
+                left_border.drawBorderLine();
+                //右ボーダーラインを描く
+                right_border.drawBorderLine();
+                //水平ボーダーラインを描く
+                horizontal_border.drawBorderLine();
+                //-------------------border描写　ここまで-------------------------
+
+                //--------------------scale描写---------------------------------
+                scale.fieldLineData = field_Line_Data;//なくても良い
+                scale.drawScale();
+                //--------------------scale描写 ここまで--------------------------
+            
+                //-----------------finCount 表示------------------------------------
+                finCount = scale.countFins( field_Line_Data );
+                countDisp.textContent = String(finCount);
+                //-----------------finnCount表示　ここまで---------------------------
+            }
+        }
+        //-------------------------------------------------------
+
+        // 回転　上下ボタンのイベントアサイン
+        button_04.addEventListener('click', button_04ClickHandler);
+        button_05.addEventListener('click', button_05ClickHandler);
+        
+        // 画像ファイルの読み込みイベントを登録する
+        fileElem.addEventListener('change', loadImageFile);
+
+        //canvasのマウス動作のイベントを登録する
+        canvasElem.addEventListener('mousedown',mouseDownHandler);
+        canvasElem.addEventListener('mousemove',mouseMoveHandler);
+        canvasElem.addEventListener('mouseup',mouseUpHandler);
+
+        //キーボードの操作イベントを登録する
+        window.addEventListener('keyup', keyboard_Handler);
+        
+    </script>    
+</body>
+</html>
