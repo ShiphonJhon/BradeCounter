@@ -1,5 +1,11 @@
 @charset "UTF-8";
 
+@media (max-width:600px){
+  p{
+    color:red;
+  }
+}
+
 html {
     font-size: 100%;
     background-color: #f0f0f0;
