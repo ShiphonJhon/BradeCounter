@@ -1,11 +1,5 @@
 @charset "UTF-8";
 
-@media (max-width:600px){
-  p{
-    color:red;
-  }
-}
-
 html {
     font-size: 100%;
     background-color: #f0f0f0;
@@ -105,3 +99,11 @@ img {
 
     z-index: 2;
   }
+  
+@media screen and (max-width:600px){
+
+  .main-title {
+    font-size: 1.5rem;
+    padding-left: 65px;
+  }
+}
